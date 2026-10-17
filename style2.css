@@ -1,18 +1,18 @@
-/* DAYFLOW — Activity Tracker Glassmorphic Edition */
+/* DAYFLOW — Activity Tracker Liquid Glassmorphic Edition */
 
 :root {
   color-scheme: dark;
   --bg: #0b0c11;
   --surface-solid: #151720;
-  --surface: rgba(22, 24, 34, 0.58);
-  --surface-2: rgba(255, 255, 255, 0.045);
-  --surface-3: rgba(30, 32, 46, 0.82);
-  --surface-hover: rgba(255, 255, 255, 0.08);
-  --surface-input: rgba(12, 13, 20, 0.55);
+  --surface: rgba(22, 24, 36, 0.52);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(30, 32, 46, 0.84);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --surface-input: rgba(12, 13, 20, 0.52);
 
-  --border: rgba(255, 255, 255, 0.09);
-  --border-light: rgba(255, 255, 255, 0.16);
-  --border-focus: rgba(155, 140, 255, 0.45);
+  --border: rgba(255, 255, 255, 0.11);
+  --border-light: rgba(255, 255, 255, 0.22);
+  --border-focus: rgba(155, 140, 255, 0.5);
 
   --text: #f3f3f8;
   --muted: #9698ab;
@@ -24,10 +24,10 @@
   --orange: #ffb978;
   --danger: #ff818b;
 
-  --glass-blur: blur(24px);
-  --glass-blur-heavy: blur(35px);
-  --glass-specular: inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -1px 3px rgba(0, 0, 0, 0.15);
-  --glass-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  --glass-blur: blur(24px) saturate(160%);
+  --glass-blur-heavy: blur(36px) saturate(180%);
+  --glass-specular: inset 0 1.5px 2px rgba(255, 255, 255, 0.24), inset 0 -1px 2px rgba(0, 0, 0, 0.2);
+  --glass-shadow: 0 20px 42px rgba(0, 0, 0, 0.44);
 
   --radius: 18px;
   --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -37,14 +37,14 @@ body.light-theme {
   color-scheme: light;
   --bg: #ebeaf4;
   --surface-solid: #ffffff;
-  --surface: rgba(255, 255, 255, 0.65);
-  --surface-2: rgba(255, 255, 255, 0.45);
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.48);
   --surface-3: rgba(240, 239, 250, 0.9);
   --surface-hover: rgba(255, 255, 255, 0.85);
-  --surface-input: rgba(255, 255, 255, 0.58);
+  --surface-input: rgba(255, 255, 255, 0.6);
 
-  --border: rgba(255, 255, 255, 0.55);
-  --border-light: rgba(255, 255, 255, 0.85);
+  --border: rgba(255, 255, 255, 0.6);
+  --border-light: rgba(255, 255, 255, 0.9);
   --border-focus: rgba(112, 88, 220, 0.45);
 
   --text: #1d1e2e;
@@ -57,12 +57,11 @@ body.light-theme {
   --orange: #a96320;
   --danger: #d63649;
 
-  --glass-specular: inset 0 1px 0 0 rgba(255, 255, 255, 0.75);
-  --glass-shadow: 0 18px 45px rgba(35, 30, 75, 0.08);
+  --glass-specular: inset 0 1.5px 2px rgba(255, 255, 255, 0.85), inset 0 -1px 2px rgba(111, 87, 220, 0.08);
+  --glass-shadow: 0 18px 45px rgba(35, 30, 75, 0.09);
 }
 
 * { box-sizing: border-box; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -78,15 +77,17 @@ body {
   transition: background-color var(--transition), color var(--transition);
 }
 
-/* ambient glowing mesh layers for realistic glass refraction */
+/* Hardware-accelerated liquid background blobs */
 body::before,
 body::after {
   content: "";
   position: fixed;
-  border-radius: 50%;
+  border-radius: 44% 56% 62% 38% / 42% 54% 46% 58%;
   pointer-events: none;
   z-index: -1;
-  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  filter: blur(60px);
+  animation: liquidFlow 20s ease-in-out infinite alternate;
 }
 
 body::before {
@@ -94,8 +95,7 @@ body::before {
   height: 580px;
   top: -120px;
   left: -80px;
-  background: radial-gradient(circle, rgba(155, 140, 255, 0.22) 0%, rgba(125, 104, 246, 0.07) 50%, transparent 70%);
-  filter: blur(55px);
+  background: radial-gradient(circle, rgba(155, 140, 255, 0.26) 0%, rgba(125, 104, 246, 0.09) 52%, transparent 72%);
 }
 
 body::after {
@@ -103,34 +103,40 @@ body::after {
   height: 620px;
   bottom: -100px;
   right: -80px;
-  background: radial-gradient(circle, rgba(118, 217, 173, 0.17) 0%, rgba(155, 140, 255, 0.07) 45%, transparent 70%);
-  filter: blur(65px);
+  background: radial-gradient(circle, rgba(118, 217, 173, 0.2) 0%, rgba(155, 140, 255, 0.09) 48%, transparent 72%);
+  animation-direction: alternate-reverse;
+  animation-duration: 25s;
 }
 
 body.light-theme::before {
-  background: radial-gradient(circle, rgba(155, 140, 255, 0.32) 0%, rgba(111, 87, 220, 0.12) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(155, 140, 255, 0.36) 0%, rgba(111, 87, 220, 0.14) 52%, transparent 72%);
 }
 
 body.light-theme::after {
-  background: radial-gradient(circle, rgba(118, 217, 173, 0.24) 0%, rgba(155, 140, 255, 0.1) 45%, transparent 70%);
+  background: radial-gradient(circle, rgba(118, 217, 173, 0.28) 0%, rgba(155, 140, 255, 0.12) 48%, transparent 72%);
+}
+
+@keyframes liquidFlow {
+  0% { transform: translate3d(0, 0, 0) scale3d(1, 1, 1) rotate(0deg); }
+  50% { transform: translate3d(45px, 55px, 0) scale3d(1.14, 0.92, 1) rotate(120deg); }
+  100% { transform: translate3d(-35px, -40px, 0) scale3d(0.92, 1.12, 1) rotate(240deg); }
 }
 
 button, input, select { font: inherit; }
-button { color: inherit; }
+button { color: inherit; -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-
 button:disabled { opacity: 0.45; cursor: not-allowed; }
-button { -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 
 .app-shell {
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
 }
 
-/* sticky floating glass topbar */
+/* Sticky floating liquid-glass topbar */
 .topbar {
   min-height: 74px;
   display: flex;
@@ -141,7 +147,7 @@ button { -webkit-tap-highlight-color: transparent; }
   z-index: 25;
   margin: 14px 0 20px;
   padding: 0 22px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   background: var(--surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -163,17 +169,33 @@ button { -webkit-tap-highlight-color: transparent; }
 .brand-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 12px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 23px;
+  font-size: 22px;
   border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.brand-fallback-icon {
+  display: none;
+}
+
+.brand-logo-img[hidden] + .brand-fallback-icon {
+  display: block;
 }
 
 .brand-dot { color: var(--accent); }
-.topbar-right { display: flex; align-items: center; gap: 18px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
 
 .save-status {
   color: var(--muted);
@@ -190,6 +212,34 @@ button { -webkit-tap-highlight-color: transparent; }
   background: var(--green);
   flex-shrink: 0;
   box-shadow: 0 0 8px var(--green);
+}
+
+/* Dedicated Install Button (prevents mobile 100% width bug) */
+.install-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none; /* Removes link underline */
+  cursor: pointer;
+  white-space: nowrap;
+  background: linear-gradient(135deg, var(--accent-strong), #907ef8);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 18px rgba(125, 104, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform var(--transition), filter var(--transition);
+}
+
+.install-button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.install-button:active {
+  transform: scale(0.97);
 }
 
 .icon-button {
@@ -247,7 +297,7 @@ h1 span { color: var(--accent); }
   align-items: center;
   gap: 12px;
   padding: 13px 18px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   background: var(--surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -268,7 +318,7 @@ h1 span { color: var(--accent); }
 }
 
 .stat-card, .panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   background: var(--surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -365,7 +415,6 @@ h1 span { color: var(--accent); }
 .date-picker-row { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; }
 .date-picker-row label { color: var(--muted); font-size: 12px; }
 
-/* frosted input controls */
 input[type="date"],
 #taskInput,
 #editTaskInput,
@@ -460,7 +509,6 @@ input::placeholder { color: var(--muted); opacity: 0.8; }
 
 .task-list { list-style: none; padding: 0; margin: 12px 0 0; }
 
-/* frosted activity tiles */
 .task-item {
   display: flex;
   align-items: center;
@@ -567,7 +615,6 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
 }
 .empty-state h3 { margin-bottom: 5px; font-size: 14px; }
 .empty-state p { margin-bottom: 0; font-size: 11px; color: var(--muted); }
-.empty-state[hidden], .chart-wrap[hidden] { display: none; }
 
 .task-footer {
   display: flex;
@@ -616,7 +663,6 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
 .quote-bottom { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 9px; letter-spacing: 1.2px; }
 .quote-line { width: 23px; height: 2px; background: var(--accent); }
 
-/* sync panel */
 .sync-panel { display: grid; gap: 14px; }
 .privacy-icon { color: var(--green); font-size: 24px; line-height: 1; }
 .sync-description { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -675,7 +721,6 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
 }
 .footer-heart { color: #ed8caa; }
 
-/* frosted dialog */
 .edit-dialog {
   width: min(420px, calc(100% - 32px));
   padding: 26px;
@@ -699,7 +744,6 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
 #editTaskInput { width: 100%; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
 
-/* floating glass toast */
 .toast {
   position: fixed;
   z-index: 50;
@@ -734,7 +778,6 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
   border: 0;
 }
 
-/* solid fallback for browsers without backdrop-filter support */
 @supports not (backdrop-filter: blur(1px)) {
   .topbar,
   .stat-card,
@@ -763,7 +806,9 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
 
 @media (max-width: 600px) {
   .app-shell { width: calc(100% - 24px); }
-  .topbar { min-height: 66px; top: 8px; margin: 8px 0 16px; padding: 0 16px; }
+  .topbar { min-height: 64px; top: 8px; margin: 8px 0 16px; padding: 0 14px; }
+  .save-status { display: none; }
+  .install-button { padding: 7px 11px; font-size: 11px; }
   .welcome { align-items: flex-start; padding: 22px 0 20px; }
   .welcome h1 { font-size: 29px; }
   .subtitle { font-size: 12px; }
@@ -808,28 +853,5 @@ body.light-theme .task-check { border-color: rgba(0, 0, 0, 0.25); }
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-body::before, body::after {
-  animation: liquidFlow 18s ease-in-out infinite alternate;
-}
-
-body::after {
-  animation-direction: alternate-reverse;
-  animation-duration: 22s;
-}
-
-@keyframes liquidFlow {
-  0% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
-    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-  }
-  50% {
-    transform: translate(40px, 60px) scale(1.15) rotate(180deg);
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-  }
-  100% {
-    transform: translate(-30px, -40px) scale(0.9) rotate(360deg);
-    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
   }
 }

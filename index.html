@@ -6,27 +6,37 @@
   <meta name="theme-color" content="#101114" id="themeColorMeta">
   <title>Dayflow — Activity Tracker</title>
 
-  <link rel="stylesheet" href="style2.css">
-  <link rel="manifest" href="manifest.json">
+  <!-- App Icons / Logos (Place icon-192.png & icon-512.png in this same folder) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="manifest" href="./manifest.json">
+
+  <link rel="stylesheet" href="./style2.css">
 
   <!-- Chart.js: optional visual analytics -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"
-          defer></script>
-  <script src="script3.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
+  <script src="./script3.js" defer></script>
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="Dayflow home">
-        <span class="brand-icon">✳</span>
+        <span class="brand-icon">
+          <!-- Put logo.png in your folder to use a custom image, or keep the ✳ fallback -->
+          <img src="./logo.png" alt="" class="brand-logo-img" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+          <span class="brand-fallback-icon">✳</span>
+        </span>
         <span>Dayflow<span class="brand-dot">.</span></span>
       </a>
 
       <div class="topbar-right">
         <span class="save-status" id="saveStatus" role="status">
-          <span class="status-dot"></span> Saved locally
+          <span class="status-dot"></span>
+          <span id="saveStatusText">Saved locally</span>
         </span>
-        <button id="installBtn" class="add-button" style="display: none; padding: 7px 14px;">↓ Install</button>
+        <a href="./dayflow.apk" download="Dayflow.apk" id="installBtn" class="install-button">
+  <span aria-hidden="true">↓</span> Download APK
+</a>
         <button class="theme-toggle icon-button" id="themeToggle"
                 type="button" aria-label="Switch to light theme"
                 title="Toggle theme">☼</button>
@@ -55,8 +65,7 @@
             <span class="stat-label">CURRENT STREAK</span>
             <span class="stat-icon fire">♨</span>
           </div>
-          <div class="stat-value"><span id="currentStreak">0</span>
-            <small>days</small></div>
+          <div class="stat-value"><span id="currentStreak">0</span> <small>days</small></div>
           <p class="stat-foot">Keep your momentum going</p>
         </article>
 
@@ -65,8 +74,7 @@
             <span class="stat-label">LONGEST STREAK</span>
             <span class="stat-icon trophy">♜</span>
           </div>
-          <div class="stat-value"><span id="longestStreak">0</span>
-            <small>days</small></div>
+          <div class="stat-value"><span id="longestStreak">0</span> <small>days</small></div>
           <p class="stat-foot">Your personal best</p>
         </article>
 
@@ -75,10 +83,9 @@
             <span class="stat-label">COMPLETED TODAY</span>
             <span class="stat-icon check-icon">✓</span>
           </div>
-          <div class="stat-value"><span id="completedToday">0</span>
-            <small>tasks</small></div>
+          <div class="stat-value"><span id="completedToday">0</span> <small>tasks</small></div>
           <p class="stat-foot"><span id="todayProgress">0%</span> of today's tasks</p>
-          <div class="progress-track" aria-label="Today's completion progress">
+          <div class="progress-track" id="todayProgressTrack" aria-label="Today's completion progress">
             <div class="progress-fill" id="todayProgressBar"></div>
           </div>
         </article>
@@ -102,7 +109,7 @@
             </button>
           </div>
 
-          <form id="taskForm" class="task-form">
+          <form id="taskForm" class="task-form" novalidate>
             <label class="sr-only" for="taskInput">Activity name</label>
             <input id="taskInput" type="text" maxlength="120"
                    placeholder="What would you like to do?"
@@ -121,8 +128,7 @@
             </button>
           </div>
 
-          <ul id="taskList" class="task-list" aria-label="Daily activities">
-          </ul>
+          <ul id="taskList" class="task-list" aria-label="Daily activities"></ul>
 
           <div class="empty-state" id="emptyState">
             <div class="empty-illustration" aria-hidden="true">✳</div>
@@ -172,7 +178,6 @@
             </div>
           </section>
 
-          <!-- Upgraded Import / Export Progress Panel -->
           <section class="panel sync-panel" aria-labelledby="syncHeading">
             <div class="panel-heading">
               <div>
@@ -185,7 +190,6 @@
               Generate a unique transfer code to move your progress to another browser or device.
             </p>
 
-            <!-- Export block -->
             <div class="sync-block">
               <div class="sync-label-row">
                 <label for="exportCodeOutput">Your transfer code</label>
@@ -205,7 +209,6 @@
               </div>
             </div>
 
-            <!-- Import block -->
             <form id="importForm" class="sync-block" novalidate>
               <div class="sync-label-row">
                 <label for="importCodeInput">Have an existing code?</label>
@@ -237,7 +240,6 @@
     </footer>
   </div>
 
-  <!-- Accessible edit dialog -->
   <dialog id="editDialog" class="edit-dialog">
     <form id="editForm">
       <p class="eyebrow">MAKE A CHANGE</p>

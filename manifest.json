@@ -1,12 +1,25 @@
 {
   "name": "Dayflow Activity Tracker",
   "short_name": "Dayflow",
-  "start_url": "/index1.html",
+  "description": "Small steps. Consistent progress. Track your daily activities.",
+  "start_url": "./index1.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#101114",
+  "background_color": "#0b0c11",
   "theme_color": "#101114",
+  "orientation": "portrait-primary",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
