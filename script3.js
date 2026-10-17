@@ -1,5 +1,5 @@
-/* DAYFLOW — Activity Tracker
-   Vanilla JavaScript + LocalStorage + Portable Transfer Codes
+/* DAYFLOW — Activity Tracker (Optimized Senior Dev Edition)
+   Vanilla JavaScript + LocalStorage + Event Delegation + PWA Support
 */
 
 "use strict";
@@ -11,16 +11,12 @@ const CODE_PREFIX = "DF1";
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  // Header & Footer (Fixed missing references that caused startup crash)
   todayLabel: $("#todayLabel"),
   headerDate: $("#headerDate"),
   footerYear: $("#footerYear"),
   themeColorMeta: $("#themeColorMeta"),
-
-  //install button
   installBtn: $("#installBtn"),
 
-  // Main Tasks & Stats
   selectedDate: $("#selectedDate"),
   taskForm: $("#taskForm"),
   taskInput: $("#taskInput"),
@@ -32,26 +28,25 @@ const elements = {
   longestStreak: $("#longestStreak"),
   todayProgress: $("#todayProgress"),
   todayProgressBar: $("#todayProgressBar"),
+  todayProgressTrack: $("#todayProgressTrack"),
   listDateLabel: $("#listDateLabel"),
   remainingLabel: $("#remainingLabel"),
   formMessage: $("#formMessage"),
-  saveStatus: $("#saveStatus"),
+  saveStatusText: $("#saveStatusText"),
   themeToggle: $("#themeToggle"),
   todayButton: $("#todayButton"),
   clearCompleted: $("#clearCompleted"),
 
-  // Chart
   chartWrap: $("#chartWrap"),
   weeklyTotal: $("#weeklyTotal"),
   chartFallback: $("#chartFallback"),
 
-  // Dialog & Toast
   toast: $("#toast"),
   editDialog: $("#editDialog"),
   editForm: $("#editForm"),
   editTaskInput: $("#editTaskInput"),
+  cancelEdit: $("#cancelEdit"),
 
-  // Import / Export Sync
   exportCodeOutput: $("#exportCodeOutput"),
   generateCodeBtn: $("#generateCodeBtn"),
   copyCodeBtn: $("#copyCodeBtn"),
@@ -67,6 +62,7 @@ let chart = null;
 let toastTimer = null;
 let messageTimer = null;
 let syncMessageTimer = null;
+let cachedTransferCode = null; // Lazy cache for expensive Base64 transfer code
 
 /* ---------- Dates ---------- */
 
@@ -74,7 +70,6 @@ function localDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-
   return `${year}-${month}-${day}`;
 }
 
@@ -98,10 +93,7 @@ function formatDate(key, options = {}) {
 }
 
 function isValidDateKey(key) {
-  if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-    return false;
-  }
-
+  if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
   const date = dateFromKey(key);
   return !Number.isNaN(date.getTime()) && localDateKey(date) === key;
 }
@@ -139,11 +131,8 @@ function loadTasks() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-
     const data = JSON.parse(stored);
-    if (!Array.isArray(data)) return [];
-
-    return data.map(sanitizeTask).filter(Boolean);
+    return Array.isArray(data) ? data.map(sanitizeTask).filter(Boolean) : [];
   } catch (error) {
     console.error("Could not read Dayflow data:", error);
     return [];
@@ -151,20 +140,14 @@ function loadTasks() {
 }
 
 function saveTasks() {
-  elements.saveStatus.innerHTML =
-    '<span class="status-dot"></span> Saving...';
-
+  cachedTransferCode = null; // Invalidate transfer code cache on data change
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-
-    elements.saveStatus.innerHTML =
-      '<span class="status-dot"></span> Saved locally';
-
+    if (elements.saveStatusText) elements.saveStatusText.textContent = "Saved locally";
     return true;
   } catch (error) {
     console.error("Could not save Dayflow data:", error);
-
-    elements.saveStatus.textContent = "Save failed";
+    if (elements.saveStatusText) elements.saveStatusText.textContent = "Save failed";
     showToast("Unable to save. Check your browser storage settings.");
     return false;
   }
@@ -172,7 +155,6 @@ function saveTasks() {
 
 /* ---------- Portable Transfer Code (Export / Import) ---------- */
 
-// 32-bit FNV-1a checksum to detect typos or truncated transfer codes.
 function computeChecksum(bytes) {
   let hash = 0x811c9dc5;
   for (let i = 0; i < bytes.length; i++) {
@@ -188,18 +170,12 @@ function bytesToBase64Url(bytes) {
   for (let i = 0; i < bytes.length; i += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
   }
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function base64UrlToBytes(base64url) {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64.padEnd(
-    base64.length + ((4 - (base64.length % 4)) % 4),
-    "="
-  );
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
@@ -210,8 +186,8 @@ function base64UrlToBytes(base64url) {
 
 function createTransferCode() {
   if (tasks.length === 0) return "";
+  if (cachedTransferCode !== null) return cachedTransferCode;
 
-  // Pack tasks as compact tuples: [id, title, date, completed(0|1), createdAt]
   const payload = {
     v: 1,
     t: tasks.map((task) => [
@@ -227,7 +203,8 @@ function createTransferCode() {
   const checksum = computeChecksum(jsonBytes);
   const encodedPayload = bytesToBase64Url(jsonBytes);
 
-  return `${CODE_PREFIX}-${checksum}-${encodedPayload}`;
+  cachedTransferCode = `${CODE_PREFIX}-${checksum}-${encodedPayload}`;
+  return cachedTransferCode;
 }
 
 function parseTransferCode(rawCode) {
@@ -267,7 +244,7 @@ function parseTransferCode(rawCode) {
     throw new Error("Transfer code does not contain valid activity data.");
   }
 
-  const importedTasks = parsed.t
+  return parsed.t
     .map((tuple) => {
       if (!Array.isArray(tuple) || tuple.length < 4) return null;
       return sanitizeTask({
@@ -279,11 +256,9 @@ function parseTransferCode(rawCode) {
       });
     })
     .filter(Boolean);
-
-  return importedTasks;
 }
 
-function refreshExportCodeField() {
+function refreshExportCodeField(forceGenerate = false) {
   if (!elements.exportCodeOutput) return;
 
   if (tasks.length === 0) {
@@ -291,8 +266,13 @@ function refreshExportCodeField() {
     elements.exportCodeOutput.placeholder = "Add an activity to generate a code";
     elements.copyCodeBtn.disabled = true;
   } else {
-    elements.exportCodeOutput.value = createTransferCode();
     elements.copyCodeBtn.disabled = false;
+    if (forceGenerate || tasks.length <= 250) {
+      elements.exportCodeOutput.value = createTransferCode();
+    } else {
+      elements.exportCodeOutput.value = "";
+      elements.exportCodeOutput.placeholder = "Click Copy or Refresh to generate code";
+    }
   }
 }
 
@@ -308,7 +288,7 @@ function showSyncMessage(text, isError = false) {
 }
 
 async function handleCopyTransferCode() {
-  refreshExportCodeField();
+  refreshExportCodeField(true);
   const code = elements.exportCodeOutput.value;
 
   if (!code) {
@@ -361,7 +341,6 @@ function handleImportTransferCode(event) {
       }
       tasks = incomingTasks.slice(0, 10000);
     } else {
-      // Merge mode: update matching IDs or deduplicate identical (title + date)
       const byId = new Map(tasks.map((task) => [task.id, task]));
       const signatureSet = new Set(
         tasks.map((task) => `${task.date}::${task.title.toLowerCase()}`)
@@ -392,25 +371,17 @@ function handleImportTransferCode(event) {
   }
 }
 
-/* ---------- Task management ---------- */
+/* ---------- Task Management ---------- */
 
 function createId() {
   if (window.crypto && typeof window.crypto.randomUUID === "function") {
     return window.crypto.randomUUID();
   }
-
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function getTasksForDay(date) {
-  return tasks
-    .filter((task) => task.date === date)
-    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 function addTask(title, date) {
   const cleanTitle = title.trim();
-
   if (!cleanTitle || !isValidDateKey(date)) return false;
 
   if (tasks.length >= 10000) {
@@ -437,7 +408,6 @@ function toggleTask(id, completed) {
   if (!task) return;
 
   task.completed = completed;
-
   saveTasks();
   renderAll();
 }
@@ -475,14 +445,12 @@ function openEditDialog(id) {
 
 function saveEditedTask(title) {
   const cleanTitle = title.trim();
-
   if (!cleanTitle) {
     elements.editTaskInput.focus();
     return;
   }
 
   const task = tasks.find((item) => item.id === editingTaskId);
-
   if (task) {
     task.title = cleanTitle.slice(0, 120);
     saveTasks();
@@ -496,9 +464,7 @@ function saveEditedTask(title) {
 
 function clearCompletedTasks() {
   const date = selectedDay();
-  const completed = tasks.filter(
-    (task) => task.date === date && task.completed
-  );
+  const completed = tasks.filter((task) => task.date === date && task.completed);
 
   if (completed.length === 0) {
     showToast("No completed tasks to clear.");
@@ -508,7 +474,6 @@ function clearCompletedTasks() {
   const confirmed = window.confirm(
     `Delete ${completed.length} completed task(s) for ${formatDate(date)}?`
   );
-
   if (!confirmed) return;
 
   const completedIds = new Set(completed.map((task) => task.id));
@@ -519,171 +484,118 @@ function clearCompletedTasks() {
   showToast("Completed tasks cleared.");
 }
 
-/* ---------- Streak calculations ---------- */
+/* ---------- Single-Pass Indexing & Rendering ---------- */
 
-function activeDays() {
-  const days = new Set();
+function buildTaskMetrics(selectedDate, todayDate) {
+  const dayTasks = [];
+  let todaysTotal = 0;
+  let todaysDone = 0;
+  const completedCountByDate = new Map();
 
-  tasks.forEach((task) => {
-    if (task.completed) days.add(task.date);
-  });
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    if (task.date === selectedDate) {
+      dayTasks.push(task);
+    }
+    if (task.date === todayDate) {
+      todaysTotal++;
+      if (task.completed) todaysDone++;
+    }
+    if (task.completed) {
+      completedCountByDate.set(
+        task.date,
+        (completedCountByDate.get(task.date) || 0) + 1
+      );
+    }
+  }
 
-  return days;
-}
+  dayTasks.sort((a, b) => a.createdAt - b.createdAt);
 
-function calculateStreaks() {
-  const days = activeDays();
-  const today = localDateKey();
-  let current = 0;
-  let longest = 0;
-
-  const sorted = [...days].sort();
-
+  // Calculate streaks from completedCountByDate keys
+  const sortedActiveDays = [...completedCountByDate.keys()].sort();
+  let currentStreak = 0;
+  let longestStreak = 0;
   let run = 0;
   let previous = null;
 
-  for (const day of sorted) {
+  for (const day of sortedActiveDays) {
     if (previous && shiftDate(previous, 1) === day) {
       run++;
     } else {
       run = 1;
     }
-
-    longest = Math.max(longest, run);
+    longestStreak = Math.max(longestStreak, run);
     previous = day;
   }
 
-  let cursor = days.has(today) ? today : shiftDate(today, -1);
+  let cursor = completedCountByDate.has(todayDate)
+    ? todayDate
+    : shiftDate(todayDate, -1);
 
-  while (days.has(cursor)) {
-    current++;
+  while (completedCountByDate.has(cursor)) {
+    currentStreak++;
     cursor = shiftDate(cursor, -1);
   }
 
-  return { current, longest };
+  return {
+    dayTasks,
+    todaysTotal,
+    todaysDone,
+    completedCountByDate,
+    currentStreak,
+    longestStreak
+  };
 }
 
-/* ---------- Rendering ---------- */
+function createTaskListItem(task) {
+  const item = document.createElement("li");
+  item.className = `task-item${task.completed ? " completed" : ""}`;
+  item.dataset.id = task.id;
 
-function makeActionButton(label, symbol, className, callback) {
-  const button = document.createElement("button");
-
-  button.type = "button";
-  button.className = `task-action ${className || ""}`.trim();
-  button.setAttribute("aria-label", label);
-  button.title = label;
-  button.textContent = symbol;
-  button.addEventListener("click", callback);
-
-  return button;
-}
-
-function renderTasks() {
-  const date = selectedDay();
-  const dayTasks = getTasksForDay(date);
-
-  elements.taskList.replaceChildren();
-
-  dayTasks.forEach((task) => {
-    const item = document.createElement("li");
-    item.className = `task-item${task.completed ? " completed" : ""}`;
-    item.dataset.id = task.id;
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.className = "task-check";
-    checkbox.checked = task.completed;
-    checkbox.setAttribute(
-      "aria-label",
-      `${task.completed ? "Mark incomplete" : "Mark complete"}: ${task.title}`
-    );
-
-    checkbox.addEventListener("change", () => {
-      toggleTask(task.id, checkbox.checked);
-    });
-
-    const content = document.createElement("div");
-    content.className = "task-content";
-
-    const name = document.createElement("span");
-    name.className = "task-name";
-    name.textContent = task.title;
-
-    const time = document.createElement("span");
-    time.className = "task-time";
-    time.textContent = task.completed ? "Completed ✓" : "On your list";
-
-    content.append(name, time);
-
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
-
-    const editButton = makeActionButton(
-      `Edit ${task.title}`,
-      "✎",
-      "",
-      () => openEditDialog(task.id)
-    );
-
-    const deleteButton = makeActionButton(
-      `Delete ${task.title}`,
-      "×",
-      "delete",
-      () => deleteTask(task.id, item)
-    );
-
-    actions.append(editButton, deleteButton);
-    item.append(checkbox, content, actions);
-    elements.taskList.append(item);
-  });
-
-  elements.emptyState.hidden = dayTasks.length > 0;
-  elements.taskCount.textContent =
-    `${dayTasks.length} ${dayTasks.length === 1 ? "task" : "tasks"}`;
-
-  const done = dayTasks.filter((task) => task.completed).length;
-  const pending = dayTasks.length - done;
-
-  elements.remainingLabel.textContent = pending
-    ? `${pending} remaining`
-    : dayTasks.length
-      ? "All done ✓"
-      : "Nothing pending";
-
-  const today = localDateKey();
-
-  if (date === today) {
-    elements.listDateLabel.textContent = "Today's list";
-  } else {
-    elements.listDateLabel.textContent =
-      dateFromKey(date).toLocaleDateString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric"
-      });
-  }
-
-  const todaysTasks = getTasksForDay(today);
-  const todaysDone = todaysTasks.filter((task) => task.completed).length;
-  const todayPercentage = todaysTasks.length
-    ? Math.round((todaysDone / todaysTasks.length) * 100)
-    : 0;
-
-  elements.completedToday.textContent = todaysDone;
-  elements.todayProgress.textContent = `${todayPercentage}%`;
-  elements.todayProgressBar.style.width = `${todayPercentage}%`;
-
-  elements.todayProgressBar.parentElement.setAttribute(
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "task-check";
+  checkbox.checked = task.completed;
+  checkbox.setAttribute(
     "aria-label",
-    `${todayPercentage}% of today's tasks completed`
+    `${task.completed ? "Mark incomplete" : "Mark complete"}: ${task.title}`
   );
-}
 
-function renderStreaks() {
-  const streaks = calculateStreaks();
+  const content = document.createElement("div");
+  content.className = "task-content";
 
-  elements.currentStreak.textContent = streaks.current;
-  elements.longestStreak.textContent = streaks.longest;
+  const name = document.createElement("span");
+  name.className = "task-name";
+  name.textContent = task.title;
+
+  const time = document.createElement("span");
+  time.className = "task-time";
+  time.textContent = task.completed ? "Completed ✓" : "On your list";
+
+  content.append(name, time);
+
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "task-action";
+  editButton.dataset.action = "edit";
+  editButton.setAttribute("aria-label", `Edit ${task.title}`);
+  editButton.title = `Edit ${task.title}`;
+  editButton.textContent = "✎";
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "task-action delete";
+  deleteButton.dataset.action = "delete";
+  deleteButton.setAttribute("aria-label", `Delete ${task.title}`);
+  deleteButton.title = `Delete ${task.title}`;
+  deleteButton.textContent = "×";
+
+  actions.append(editButton, deleteButton);
+  item.append(checkbox, content, actions);
+  return item;
 }
 
 function renderHeader() {
@@ -695,18 +607,18 @@ function renderHeader() {
     day: "numeric"
   });
 
-  elements.todayLabel.textContent = today.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric"
-  }).toUpperCase();
+  elements.todayLabel.textContent = today
+    .toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric"
+    })
+    .toUpperCase();
 
   elements.footerYear.textContent = today.getFullYear();
 }
 
-/* ---------- Chart ---------- */
-
-function renderChart() {
+function renderChart(completedCountByDate, today) {
   if (typeof window.Chart === "undefined") {
     elements.chartFallback.hidden = false;
     elements.chartWrap.hidden = true;
@@ -716,65 +628,75 @@ function renderChart() {
   elements.chartFallback.hidden = true;
   elements.chartWrap.hidden = false;
 
-  const today = localDateKey();
   const labels = [];
   const values = [];
 
   for (let offset = 6; offset >= 0; offset--) {
     const date = shiftDate(today, -offset);
-    const completed = tasks.filter(
-      (task) => task.date === date && task.completed
-    ).length;
-
     labels.push(
-      dateFromKey(date).toLocaleDateString(undefined, {
-        weekday: "short"
-      })
+      dateFromKey(date).toLocaleDateString(undefined, { weekday: "short" })
     );
-
-    values.push(completed);
+    values.push(completedCountByDate.get(date) || 0);
   }
 
-  elements.weeklyTotal.textContent =
-    `${values.reduce((sum, value) => sum + value, 0)} total`;
+  elements.weeklyTotal.textContent = `${values.reduce((sum, v) => sum + v, 0)} total`;
 
   const styles = getComputedStyle(document.body);
   const textColor = styles.getPropertyValue("--muted").trim();
   const gridColor = styles.getPropertyValue("--border").trim();
   const accentColor = styles.getPropertyValue("--accent").trim();
+  const tooltipBg = styles.getPropertyValue("--surface-3").trim();
+  const titleColor = styles.getPropertyValue("--text").trim();
 
-  const config = {
+  if (chart) {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.data.datasets[0].backgroundColor = accentColor;
+    chart.data.datasets[0].hoverBackgroundColor = accentColor;
+    chart.options.scales.x.ticks.color = textColor;
+    chart.options.scales.y.ticks.color = textColor;
+    chart.options.scales.y.grid.color = gridColor;
+    chart.options.scales.y.suggestedMax = Math.max(3, ...values);
+    chart.options.plugins.tooltip.backgroundColor = tooltipBg;
+    chart.options.plugins.tooltip.titleColor = titleColor;
+    chart.options.plugins.tooltip.bodyColor = titleColor;
+    chart.options.plugins.tooltip.borderColor = gridColor;
+    chart.update();
+    return;
+  }
+
+  chart = new window.Chart($("#activityChart"), {
     type: "bar",
     data: {
       labels,
-      datasets: [{
-        label: "Completed tasks",
-        data: values,
-        backgroundColor: accentColor,
-        hoverBackgroundColor: accentColor,
-        borderRadius: 6,
-        borderSkipped: false,
-        maxBarThickness: 25
-      }]
+      datasets: [
+        {
+          label: "Completed tasks",
+          data: values,
+          backgroundColor: accentColor,
+          hoverBackgroundColor: accentColor,
+          borderRadius: 6,
+          borderSkipped: false,
+          maxBarThickness: 25
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: {
-        duration: 350
-      },
+      animation: { duration: 300 },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: styles.getPropertyValue("--surface-3").trim(),
-          titleColor: styles.getPropertyValue("--text").trim(),
-          bodyColor: styles.getPropertyValue("--text").trim(),
+          backgroundColor: tooltipBg,
+          titleColor,
+          bodyColor: titleColor,
           borderColor: gridColor,
           borderWidth: 1,
           displayColors: false,
           callbacks: {
-            label: (context) =>
-              `${context.parsed.y} completed task${context.parsed.y === 1 ? "" : "s"}`
+            label: (ctx) =>
+              `${ctx.parsed.y} completed task${ctx.parsed.y === 1 ? "" : "s"}`
           }
         }
       },
@@ -782,57 +704,73 @@ function renderChart() {
         x: {
           grid: { display: false },
           border: { display: false },
-          ticks: {
-            color: textColor,
-            font: { size: 10 }
-          }
+          ticks: { color: textColor, font: { size: 10 } }
         },
         y: {
           beginAtZero: true,
           suggestedMax: Math.max(3, ...values),
-          ticks: {
-            color: textColor,
-            precision: 0,
-            stepSize: 1,
-            font: { size: 10 }
-          },
+          ticks: { color: textColor, precision: 0, stepSize: 1, font: { size: 10 } },
           grid: { color: gridColor },
           border: { display: false }
         }
       }
     }
-  };
-
-  if (chart) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = values;
-
-    chart.options.scales.x.ticks.color = textColor;
-    chart.options.scales.y.ticks.color = textColor;
-    chart.options.scales.y.grid.color = gridColor;
-    chart.options.plugins.tooltip.backgroundColor =
-      styles.getPropertyValue("--surface-3").trim();
-    chart.options.plugins.tooltip.titleColor =
-      styles.getPropertyValue("--text").trim();
-    chart.options.plugins.tooltip.bodyColor =
-      styles.getPropertyValue("--text").trim();
-    chart.options.plugins.tooltip.borderColor = gridColor;
-    chart.data.datasets[0].backgroundColor = accentColor;
-    chart.data.datasets[0].hoverBackgroundColor = accentColor;
-    chart.options.scales.y.suggestedMax = Math.max(3, ...values);
-
-    chart.update();
-  } else {
-    chart = new window.Chart($("#activityChart"), config);
-  }
+  });
 }
 
 function renderAll() {
+  const date = selectedDay();
+  const today = localDateKey();
+  const metrics = buildTaskMetrics(date, today);
+
   renderHeader();
-  renderTasks();
-  renderStreaks();
-  renderChart();
-  refreshExportCodeField();
+
+  // Batch DOM updates with DocumentFragment
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < metrics.dayTasks.length; i++) {
+    fragment.appendChild(createTaskListItem(metrics.dayTasks[i]));
+  }
+  elements.taskList.replaceChildren(fragment);
+
+  const count = metrics.dayTasks.length;
+  elements.emptyState.hidden = count > 0;
+  elements.taskCount.textContent = `${count} ${count === 1 ? "task" : "tasks"}`;
+
+  const done = metrics.dayTasks.filter((t) => t.completed).length;
+  const pending = count - done;
+
+  elements.remainingLabel.textContent = pending
+    ? `${pending} remaining`
+    : count
+      ? "All done ✓"
+      : "Nothing pending";
+
+  elements.listDateLabel.textContent =
+    date === today
+      ? "Today's list"
+      : dateFromKey(date).toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric"
+        });
+
+  const todayPercentage = metrics.todaysTotal
+    ? Math.round((metrics.todaysDone / metrics.todaysTotal) * 100)
+    : 0;
+
+  elements.completedToday.textContent = metrics.todaysDone;
+  elements.todayProgress.textContent = `${todayPercentage}%`;
+  elements.todayProgressBar.style.width = `${todayPercentage}%`;
+  elements.todayProgressTrack.setAttribute(
+    "aria-label",
+    `${todayPercentage}% of today's tasks completed`
+  );
+
+  elements.currentStreak.textContent = metrics.currentStreak;
+  elements.longestStreak.textContent = metrics.longestStreak;
+
+  renderChart(metrics.completedCountByDate, today);
+  refreshExportCodeField(false);
 }
 
 /* ---------- Theme ---------- */
@@ -851,7 +789,7 @@ function applyTheme(theme) {
     : "Switch to light theme";
 
   if (elements.themeColorMeta) {
-    elements.themeColorMeta.setAttribute("content", light ? "#f3f3f8" : "#101114");
+    elements.themeColorMeta.setAttribute("content", light ? "#ebeaf4" : "#101114");
   }
 
   try {
@@ -860,7 +798,11 @@ function applyTheme(theme) {
     console.warn("Theme preference could not be saved.", error);
   }
 
-  if (chart) renderChart();
+  if (chart) {
+    const today = localDateKey();
+    const metrics = buildTaskMetrics(selectedDay(), today);
+    renderChart(metrics.completedCountByDate, today);
+  }
 }
 
 function loadTheme() {
@@ -881,25 +823,44 @@ function showToast(message) {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     elements.toast.classList.remove("visible");
-  }, 2400);
+  }, 3000);
 }
 
-/* ---------- Event listeners ---------- */
+/* ---------- Event Listeners ---------- */
+
+// Delegated listener for all task list items (checkbox, edit, delete)
+elements.taskList.addEventListener("change", (event) => {
+  if (!event.target.classList.contains("task-check")) return;
+  const item = event.target.closest(".task-item");
+  if (item) toggleTask(item.dataset.id, event.target.checked);
+});
+
+elements.taskList.addEventListener("click", (event) => {
+  const actionBtn = event.target.closest("[data-action]");
+  if (!actionBtn) return;
+
+  const item = actionBtn.closest(".task-item");
+  if (!item) return;
+
+  const { id } = item.dataset;
+  if (actionBtn.dataset.action === "edit") {
+    openEditDialog(id);
+  } else if (actionBtn.dataset.action === "delete") {
+    deleteTask(id, item);
+  }
+});
 
 elements.taskForm.addEventListener("submit", (event) => {
   event.preventDefault();
-
   const date = selectedDay();
   const title = elements.taskInput.value;
 
   if (!title.trim()) {
     elements.formMessage.textContent = "Please enter an activity name.";
-
     window.clearTimeout(messageTimer);
     messageTimer = window.setTimeout(() => {
       elements.formMessage.textContent = "";
     }, 2500);
-
     elements.taskInput.focus();
     return;
   }
@@ -915,7 +876,6 @@ elements.selectedDate.addEventListener("change", () => {
   if (!isValidDateKey(selectedDay())) {
     elements.selectedDate.value = localDateKey();
   }
-
   renderAll();
 });
 
@@ -927,10 +887,7 @@ elements.todayButton.addEventListener("click", () => {
 elements.clearCompleted.addEventListener("click", clearCompletedTasks);
 
 elements.themeToggle.addEventListener("click", () => {
-  const nextTheme = document.body.classList.contains("light-theme")
-    ? "dark"
-    : "light";
-
+  const nextTheme = document.body.classList.contains("light-theme") ? "dark" : "light";
   applyTheme(nextTheme);
 });
 
@@ -939,7 +896,7 @@ elements.editForm.addEventListener("submit", (event) => {
   saveEditedTask(elements.editTaskInput.value);
 });
 
-$("#cancelEdit").addEventListener("click", () => {
+elements.cancelEdit.addEventListener("click", () => {
   editingTaskId = null;
   elements.editDialog.close();
 });
@@ -948,9 +905,8 @@ elements.editDialog.addEventListener("close", () => {
   editingTaskId = null;
 });
 
-// Sync / Import & Export listeners
 elements.generateCodeBtn.addEventListener("click", () => {
-  refreshExportCodeField();
+  refreshExportCodeField(true);
   if (elements.exportCodeOutput.value) {
     elements.exportCodeOutput.focus();
     elements.exportCodeOutput.select();
@@ -967,40 +923,10 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) renderAll();
 });
 
-/* ---------- Initialize ---------- */
+/* ---------- Android APK Button Logic ---------- */
+const isInsideAndroidApk = /; wv\)/i.test(navigator.userAgent) || window.Capacitor !== undefined;
 
-function initializeApp() {
-  elements.selectedDate.value = localDateKey();
-  loadTheme();
-  renderAll();
+if (isInsideAndroidApk && elements.installBtn) {
+  // Hide the download button when the user is already inside the installed Android APK
+  elements.installBtn.hidden = true;
 }
-
-initializeApp();
-
-/* ---------- PWA Installation ---------- */
-let deferredPrompt;
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW failed', err));
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  elements.installBtn.style.display = 'inline-flex'; // Show the install button
-});
-
-elements.installBtn.addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === 'accepted') {
-    elements.installBtn.style.display = 'none';
-  }
-  deferredPrompt = null;
-});
-
-window.addEventListener('appinstalled', () => {
-  elements.installBtn.style.display = 'none';
-  deferredPrompt = null;
-});
