@@ -7,6 +7,7 @@
   <title>Dayflow — Activity Tracker</title>
 
   <link rel="stylesheet" href="style2.css">
+  <link rel="manifest" href="manifest.json">
 
   <!-- Chart.js: optional visual analytics -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"
@@ -25,6 +26,7 @@
         <span class="save-status" id="saveStatus" role="status">
           <span class="status-dot"></span> Saved locally
         </span>
+        <button id="installBtn" class="add-button" style="display: none; padding: 7px 14px;">↓ Install</button>
         <button class="theme-toggle icon-button" id="themeToggle"
                 type="button" aria-label="Switch to light theme"
                 title="Toggle theme">☼</button>

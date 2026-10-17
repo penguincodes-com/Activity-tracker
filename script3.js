@@ -17,6 +17,9 @@ const elements = {
   footerYear: $("#footerYear"),
   themeColorMeta: $("#themeColorMeta"),
 
+  //install button
+  installBtn: $("#installBtn"),
+
   // Main Tasks & Stats
   selectedDate: $("#selectedDate"),
   taskForm: $("#taskForm"),
@@ -973,3 +976,31 @@ function initializeApp() {
 }
 
 initializeApp();
+
+/* ---------- PWA Installation ---------- */
+let deferredPrompt;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW failed', err));
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  elements.installBtn.style.display = 'inline-flex'; // Show the install button
+});
+
+elements.installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    elements.installBtn.style.display = 'none';
+  }
+  deferredPrompt = null;
+});
+
+window.addEventListener('appinstalled', () => {
+  elements.installBtn.style.display = 'none';
+  deferredPrompt = null;
+});
